@@ -11,7 +11,7 @@ Windows
 Show Self Encryption status of Volumes
 
 NOTE:
-This does not show of the feature is or is not supported by the device.
+This does not show if the feature is or is not supported by the device.
 Not all drives support SED. - Manufacturer device information also often does not list this. Ask Bing CoPilot. It knows...
 
 - Most mechanical HDDs do not support this.
