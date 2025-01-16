@@ -11,6 +11,7 @@ The YouTube Transcript Downloader is a Python application for downloading transc
 - **Customizable Configuration**: Modify log settings, transcript filename length, and regex patterns via `config.json`.
 
 ## Requirements
+- **YouTube API key**
 - Python 3.7+
 - Dependencies:
   - `google-api-python-client`
