@@ -1,0 +1,11 @@
+{
+    "LOGFILE_NAME": "script.log",
+    "LOGFILE_PATH": "./logs",
+    "ENABLE_LOGGING": true,
+    "TRANSCRIPT_FILENAME_LENGTH": 36,
+    "REGEX_PATTERNS": {
+        "sanitize_filename": "[^\\w\\-\\s]",
+        "iso_duration": "PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?",
+        "youtube_video_id": "(?:v=|\\/)([0-9A-Za-z_-]{11}).*"
+    }
+}
