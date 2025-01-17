@@ -8,7 +8,7 @@
 ---
 
 ### YoutubeTranscriptDownloader
-- **Requires YouTube API Key!**
+- 🚨 **Requires YouTube API Key** 🚨
 - Download YouTube video transcripts
   - From entire channel
   - From individual video
