@@ -78,11 +78,12 @@ The `config.json` file allows you to customize the application. Example:
 }
 ```
 - `"TRANSCRIPT_FILENAME_LENGTH"`: truncates filenames to max x characters, incl spaces.
-- `"sanitize_filename"`: Removes non-standard UTF-8 characters and removes double spaces in title.
-- `"iso_duration"`: Gets the total length from the video.
-- `"youtube_video_id"`: Validates the video ID (the part after 'watch' in youtube video urls)
-    - make sure they don't have any other tags such as `?t=xxx`
-- `"REGEX_PATTERNS"`: Don't touch them.
+- `"REGEX_PATTERNS"`
+    - `"sanitize_filename"`: Removes non-standard UTF-8 characters and removes double spaces in title.
+    - `"iso_duration"`: Gets the total length from the video.
+    - `"youtube_video_id"`: Validates the video ID (the part after 'watch' in youtube video urls)
+        - make sure they don't have any other tags such as `?t=xxx`
+
 
 
 ## File Structure
