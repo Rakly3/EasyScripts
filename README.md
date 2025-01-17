@@ -3,7 +3,7 @@
 ---
 
 ### Win_IOMMU-list
-- Lists IOMMU capable devices (Windows 10/11) Maybe 7/8 too, not tested.
+- Lists IOMMU capable devices on Windows 10/11. (Maybe 7/8 too, not tested.)
 
 ---
 
