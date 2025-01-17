@@ -1,5 +1,33 @@
 # YouTube Transcript Downloader
 
+---
+
+## Usage
+Run the script:
+```bash
+python YoutubeTranscriptDownloader.py
+```
+
+### Main Menu Options
+1. **Get Video Transcript**:
+    - Fetch and save a transcript for a single video by entering its URL.
+
+2. **Get Transcripts from Video List File**:
+    - Process a file (text or CSV) with video URLs or IDs.
+
+3. **Fetch Channel Videos and Save to File**:
+    - Fetch all videos from a YouTube channel and save metadata to a CSV file.
+    - Then use the CSV file for menu option 2.
+    - This is intentionally set up this way so you can still remove videos you don't want the transcripts from. ie from before a certain date, a specific video title. Or you're looking for a specific video and don't want to scroll through endless pages to find it.
+
+4. **Find Duplicate Transcripts**:
+    - Detect and list duplicate transcript files in a directory.
+
+5. **Quit**: Exit the application.
+
+---
+---
+
 ## Overview
 The YouTube Transcript Downloader is a Python application for downloading transcripts from YouTube videos and channels. It uses the YouTube Data API and YouTube Transcript API to fetch video metadata and subtitles. The application can save transcripts to files, process video lists, and identify duplicate transcripts.
 
@@ -11,7 +39,7 @@ The YouTube Transcript Downloader is a Python application for downloading transc
 - **Customizable Configuration**: Modify log settings, transcript filename length, and regex patterns via `config.json`.
 
 ## Requirements
-- **YouTube API key**
+- 🚨 **YouTube API key** 🚨
 - Python 3.7+
 - Dependencies:
   - `google-api-python-client`
@@ -50,18 +78,6 @@ The `config.json` file allows you to customize the application. Example:
 }
 ```
 
-## Usage
-Run the script:
-```bash
-python YoutubeTranscriptDownloader.py
-```
-
-### Main Menu Options
-1. **Get Video Transcript**: Fetch and save a transcript for a single video by entering its URL.
-2. **Get Transcripts from Video List File**: Process a file (text or CSV) with video URLs or IDs.
-3. **Fetch Channel Videos and Save to File**: Fetch all videos from a YouTube channel and save metadata to a CSV file.
-4. **Find Duplicate Transcripts**: Detect and list duplicate transcript files in a directory.
-5. **Quit**: Exit the application.
 
 ## File Structure
 - **Main Script**: `YoutubeTranscriptDownloader.py`
@@ -91,7 +107,7 @@ python YoutubeTranscriptDownloader.py
 Logs are saved to the specified file in `config.json` (default: `./logs/script.log`). Logging can be disabled by setting `"ENABLE_LOGGING": false`.
 
 ## Known Issues
-- Transcripts disabled for certain videos cannot be downloaded.
+- Transcripts disabled by the channel owner cannot be downloaded.
 - Missing or invalid API key results in an error.
 
 ## License
