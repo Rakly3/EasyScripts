@@ -3,7 +3,9 @@
 ---
 
 ### Win_IOMMU-list
-- Lists IOMMU capable devices on Windows 10/11. (Maybe 7/8 too, not tested.) Used for VM passthrough.
+- Lists IOMMU capable devices in your system. Used for VM passthrough.
+- Requires Powershell 5, likely works in pwsh 7 too.
+- Windows 10/11. (Win7/8 untested)
 
 ---
 
