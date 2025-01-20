@@ -13,7 +13,7 @@
 #==================================================================
 
 # =========================== IMPORTS =============================
-import os, re, csv, json, hashlib, logging
+import os, re, csv, json, hashlib, logging, isodate
 from tqdm import tqdm
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
@@ -29,16 +29,12 @@ DEFAULT_CONFIG = {
     "TRANSCRIPT_FILENAME_LENGTH": 36,
     "REGEX_PATTERNS": {
         "sanitize_filename": r"[^\w\-\s]",
-        "iso_duration": r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?",
-        "youtube_video_id": r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
+        "youtube_video_id": r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:[&?].*)?"
     }
 }
 
 def load_config():
-    """Load configuration and API key from files with fallback to defaults."""
     config = DEFAULT_CONFIG.copy()
-
-    # Load main config
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r") as f:
@@ -47,7 +43,6 @@ def load_config():
         except Exception as e:
             print(f"Error loading '{CONFIG_FILE}': {e}. Using default settings.")
 
-    # Load API key
     if os.path.exists(API_KEY_FILE):
         try:
             with open(API_KEY_FILE, "r") as f:
@@ -56,12 +51,11 @@ def load_config():
         except Exception as e:
             print(f"Error loading '{API_KEY_FILE}': {e}. API key not loaded.")
     else:
-        print(f"API key file '{API_KEY_FILE}' not found. Ensure the API key file exists.")
+        print(f"API key file '{API_KEY_FILE}' not found.")
 
     return config
 
 CONFIG = load_config()
-
 LOGFILE_NAME = CONFIG["LOGFILE_NAME"]
 LOGFILE_PATH = CONFIG["LOGFILE_PATH"]
 LOGFILE = os.path.join(LOGFILE_PATH, LOGFILE_NAME)
@@ -73,12 +67,11 @@ API_KEY = CONFIG.get("API_KEY")
 if not API_KEY:
     raise ValueError("API key is missing. Please provide it in 'API_KEY.json'.")
 
-
 # =========================== SETUP LOGGING ===========================
 log_dir = os.path.dirname(LOGFILE)
 if log_dir and not os.path.exists(log_dir):
     os.makedirs(log_dir, exist_ok=True)
-    
+
 if ENABLE_LOGGING:
     logging.basicConfig(
         filename=LOGFILE,
@@ -91,72 +84,117 @@ else:
 
 # ====================== HELPER FUNCTIONS ============================
 def sanitize_filename(name, max_length=TRANSCRIPT_FILENAME_LENGTH):
-    """Sanitize filenames for compatibility with NTFS and truncate."""
     pattern = REGEX_PATTERNS.get("sanitize_filename", r"[^\w\-\s]")
-    sanitized = re.sub(pattern, "", name).strip()[:max_length]
-    return sanitized if sanitized else "untitled"
+    sanitized_filename = re.sub(pattern, "", name).strip()[:max_length]
+    return sanitized_filename if sanitized_filename else "untitled"
+
+def sanitize_text(text):
+    if not text:
+        return ""
+    regex_special_chars = r"[\\^$.|?*+(){}[\]]"
+    emoji_and_non_utf8 = r"[^\u0000-\u007F\u0080-\uFFFF]"
+    multiple_spaces = r"\s+"
+    text = re.sub(regex_special_chars, "", text)
+    text = re.sub(emoji_and_non_utf8, "", text)
+    text = re.sub(multiple_spaces, " ", text)
+    return text.strip()
+
+def parse_time_format(seconds):
+    if not isinstance(seconds, (int, float)):
+        raise ValueError(f"Expected a number, got: {seconds}")
+    total_seconds = int(seconds)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}" if hours else f"{minutes:02}:{seconds:02}"
 
 def fetch_video_metadata(video_id):
     """Fetch video metadata using YouTube Data API."""
     try:
-        youtube = build("youtube", "v3", developerKey=CONFIG.get("API_KEY"))
-        response = youtube.videos().list(part="snippet,contentDetails,statistics", id=video_id).execute()
+        youtube = build("youtube", "v3", developerKey=API_KEY)
+        response = youtube.videos().list(part="snippet,contentDetails", id=video_id).execute()
         if "items" in response and response["items"]:
             item = response["items"][0]
             snippet = item["snippet"]
             content_details = item["contentDetails"]
-            statistics = item["statistics"]
 
-            video_title = snippet["title"]
-            channel_name = snippet["channelTitle"]
+            title = snippet["title"]
+            channel_title = snippet["channelTitle"]
             publish_date = snippet["publishedAt"][:10]
-            views = statistics.get("viewCount", "0")
-            duration = format_duration(content_details["duration"])
+            duration = content_details["duration"]
+            tags = snippet.get("tags", [])
 
-            return video_title, channel_name, publish_date, views, duration
-        else:
-            logging.warning(f"No metadata found for video ID: {video_id}")
-            return "Unknown Title", "Unknown Channel", "", "0", "00:00"
+            return {
+                "title": title,
+                "channel_title": channel_title,
+                "publish_date": publish_date,
+                "duration": duration,
+                "tags": tags,
+            }
+        logging.warning(f"No metadata found for video ID: {video_id}")
     except Exception as e:
         logging.error(f"Error fetching metadata for video ID {video_id}: {e}")
-        return "Unknown Title", "Unknown Channel", "", "0", "00:00"
+    return {}
 
 
-def format_duration(iso_duration):
-    """Convert ISO 8601 duration to hh:mm format."""
-    pattern = REGEX_PATTERNS.get("iso_duration", r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
-    match = re.match(pattern, iso_duration)
-    if not match:
-        return "00:00"
-
-    hours, minutes, _ = match.groups()
-    hours = int(hours) if hours else 0
-    minutes = int(minutes) if minutes else 0
-    return f"{hours:02}:{minutes:02}"
-
-def fetch_single_video(video_url=None):
-    """Fetch transcript for a single video."""
+def fetch_single_video(video_url=None, metadata=None):
+    """
+    Fetch transcript for a single video using metadata if provided,
+    otherwise fetch metadata using the YouTube Data API.
+    """
     if video_url is None:
         video_url = input("Enter the video URL: ")
 
-    pattern = REGEX_PATTERNS.get("youtube_video_id", r"(?:v=|\/)([0-9A-Za-z_-]{11}).*")
+    pattern = REGEX_PATTERNS.get("youtube_video_id", r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:[&?].*)?")
     match = re.search(pattern, video_url)
     if not match:
         print("Invalid URL. Must contain a valid YouTube video ID.")
         return
 
     video_id = match.group(1)
+
+    # Validate provided metadata
+    if metadata:
+        required_keys = {"title", "channel_title", "publish_date", "duration", "tags"}
+        
+        # Check that all keys are present and their values are non-empty/valid
+        is_metadata_valid = all(
+            key in metadata and metadata[key] not in [None, "", []]
+            for key in required_keys
+        )
+        
+        if is_metadata_valid:
+            print(f"Using provided metadata for video ID {video_id}")
+        else:
+            print(f"Incomplete or invalid metadata for video ID {video_id}. Fetching from API.")
+            metadata = fetch_video_metadata(video_id)
+    else:
+        metadata = fetch_video_metadata(video_id)
+
+    # If no metadata could be fetched, skip this video
+    if not metadata:
+        print(f"Failed to fetch metadata for video ID {video_id}. Skipping.")
+        return
+
+    # Fetch transcript
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        video_title, channel_name, *_ = fetch_video_metadata(video_id)
-        save_transcript(video_url, transcript, channel_name, video_title)
-        print(f"Transcript for {video_title} saved successfully.")
+
+        # Save transcript and metadata
+        save_transcript(
+            video_url,
+            transcript,
+            metadata.get("channel_title", "Unknown"),
+            metadata.get("title", "Unknown"),
+            metadata.get("publish_date", "Unknown"),
+        )
+        print(f"Transcript for {metadata.get('title', 'Unknown')} saved successfully.")
     except TranscriptsDisabled:
         print("Transcripts are disabled for this video.")
     except NoTranscriptFound:
         print("No transcript found for this video.")
     except Exception as e:
         print(f"An error occurred: {e}")
+
 
 def get_channel_id_from_url(url):
     """Extract the channel ID from a YouTube URL or handle."""
@@ -184,8 +222,17 @@ def get_channel_id_from_url(url):
         print(f"An error occurred: {e}")
         return None
 
+def parse_iso8601_duration(iso_duration):
+    """Convert ISO 8601 duration (e.g., 'PT1H2M30S') to seconds."""
+    try:
+        duration = isodate.parse_duration(iso_duration)
+        return int(duration.total_seconds())
+    except Exception as e:
+        logging.error(f"Error parsing duration '{iso_duration}': {e}")
+        return 0  # Default to 0 seconds if parsing fails
+
 def fetch_channel_videos(channel_url):
-    """Fetch a list of all videos in a channel and save metadata to a CSV file."""
+    """Fetch all public videos from a channel's uploads playlist with detailed metadata."""
     channel_id = get_channel_id_from_url(channel_url)
     if not channel_id:
         print("Failed to retrieve channel ID.")
@@ -193,40 +240,69 @@ def fetch_channel_videos(channel_url):
 
     try:
         youtube = build("youtube", "v3", developerKey=API_KEY)
+
+        # Get the uploads playlist ID
+        channel_response = youtube.channels().list(part="contentDetails,snippet", id=channel_id).execute()
+        uploads_playlist_id = channel_response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        channel_name = sanitize_filename(channel_response["items"][0]["snippet"]["title"])
+
         videos = []
         next_page_token = None
 
-        # Get channel name for the file and folder
-        response = youtube.channels().list(part="snippet", id=channel_id).execute()
-        channel_name = sanitize_filename(response["items"][0]["snippet"]["title"])
+        while True:
+            # Fetch video IDs from playlistItems().list
+            playlist_response = youtube.playlistItems().list(
+                playlistId=uploads_playlist_id,
+                part="snippet",
+                maxResults=50,
+                pageToken=next_page_token,
+            ).execute()
 
-        # Create output directory
+            video_ids = []
+            for item in playlist_response.get("items", []):
+                snippet = item.get("snippet", {})
+                resource_id = snippet.get("resourceId", {})
+                video_id = resource_id.get("videoId")
+                if video_id:
+                    video_ids.append(video_id)
+                else:
+                    print(f"Skipping invalid item: {item}")
+
+            # Fetch detailed metadata for the video IDs
+            if video_ids:
+                videos_response = youtube.videos().list(
+                    part="snippet,contentDetails",
+                    id=",".join(video_ids),
+                ).execute()
+
+                for video in videos_response.get("items", []):
+                    snippet = video.get("snippet", {})
+                    content_details = video.get("contentDetails", {})
+                    raw_duration = content_details.get("duration", "Unknown")
+                    duration_seconds = parse_iso8601_duration(raw_duration)
+                    formatted_duration = parse_time_format(duration_seconds)
+
+                    videos.append([
+                        video["id"],
+                        snippet.get("title", "Unknown"),
+                        snippet.get("tags", []),
+                        snippet.get("channelTitle", "Unknown"),
+                        snippet.get("publishedAt", "Unknown"),
+                        formatted_duration,
+                    ])
+
+            next_page_token = playlist_response.get("nextPageToken")
+            if not next_page_token:
+                break
+
+        # Save videos to a CSV file
         channel_dir = os.path.join("transcripts", channel_name)
         os.makedirs(channel_dir, exist_ok=True)
 
         output_file = os.path.join(channel_dir, f"{channel_name}.csv")
-
-        while True:
-            response = youtube.search().list(
-                channelId=channel_id,
-                part="id,snippet",
-                maxResults=50,
-                pageToken=next_page_token,
-                type="video"
-            ).execute()
-
-            for item in response.get("items", []):
-                video_id = item["id"]["videoId"]
-                video_title, _, publish_date, views, duration = fetch_video_metadata(video_id)
-                videos.append([video_id, video_title, publish_date, views, duration])
-
-            next_page_token = response.get("nextPageToken")
-            if not next_page_token:
-                break
-
         with open(output_file, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["Video ID", "Title", "Publish Date", "Views", "Duration (hh:mm)"])
+            writer.writerow(["Video ID", "Title", "Tags", "Channel Title", "Publish Date", "Duration"])
             writer.writerows(videos)
 
         print(f"Fetched {len(videos)} videos. Saved to {output_file}.")
@@ -235,14 +311,9 @@ def fetch_channel_videos(channel_url):
         logging.error(f"Error fetching channel videos: {e}")
         print(f"An error occurred: {e}")
 
+
 def process_file_with_video_urls():
-    """Process a file containing video IDs or URLs."""
     file_path = input("Enter the path to the file (Text/CSV): ").strip()
-
-    # Handle quoted paths and normalize them
-    if file_path.startswith('"') and file_path.endswith('"'):
-        file_path = file_path[1:-1]
-
     if not os.path.exists(file_path):
         print("File not found. Please try again.")
         return
@@ -254,24 +325,21 @@ def process_file_with_video_urls():
         with open(file_path, "r", encoding="utf-8") as f:
             if is_csv:
                 reader = csv.reader(f)
-                next(reader)  # Skip header
+                next(reader)
                 for row in reader:
-                    video_id = row[0].strip()
-                    urls.append(f"https://www.youtube.com/watch?v={video_id}")
+                    urls.append(f"https://www.youtube.com/watch?v={row[0].strip()}")
             else:
                 for line in f.readlines():
                     video_id = line.strip()
-                    if not video_id.startswith("https://"):
-                        urls.append(f"https://www.youtube.com/watch?v={video_id}")
-                    else:
-                        urls.append(video_id)
+                    urls.append(
+                        f"https://www.youtube.com/watch?v={video_id}" if not video_id.startswith("https://") else video_id
+                    )
 
         for url in tqdm(urls, desc="Processing URLs", dynamic_ncols=True):
             fetch_single_video(url)
 
     except Exception as e:
         print(f"An error occurred while processing the file: {e}")
-
 
 def find_duplicate_transcripts():
     """Find duplicate transcripts in the transcripts directory."""
@@ -285,7 +353,7 @@ def find_duplicate_transcripts():
 
     for root, _, files in os.walk(transcripts_dir):
         for file in files:
-            if file.endswith(".txt"):
+            if file.endswith(".json"):
                 file_path = os.path.join(root, file)
                 file_hash = compute_sha1(file_path)
                 if file_hash in hashes:
@@ -302,17 +370,37 @@ def find_duplicate_transcripts():
     else:
         print("No duplicate transcripts found.")
 
-def save_transcript(video_url, transcript, channel_name, video_title):
-    """Save transcript to file."""
+def save_transcript(video_url, transcript, channel_name, video_title, publish_date):
+    """Save transcript and metadata to a JSON file."""
     sanitized_title = sanitize_filename(video_title)
     channel_dir = os.path.join("transcripts", sanitize_filename(channel_name))
     os.makedirs(channel_dir, exist_ok=True)
 
-    filename = os.path.join(channel_dir, f"{sanitized_title}.txt")
-    with open(filename, "w", encoding="utf-8", errors="ignore") as f:
-        f.write(f"{video_url}\n{channel_name}\n{video_title}\n\n\n")
-        for line in transcript:
-            f.write(f"{line}\n")
+    metadata = fetch_video_metadata(video_url.split("v=")[-1].split("&")[0])
+
+    transcript_data = {
+        "metadata": {
+            "video_url": video_url,
+            "channel_name": channel_name,
+            "video_title": video_title,
+            "publish_date": publish_date,
+            "duration": metadata.get("duration", "Unknown"),
+            "tags": metadata.get("tags", []),
+        },
+        "transcript": [
+            {
+                "text": sanitize_text(entry["text"]),
+                "at": parse_time_format(entry["start"]),
+            }
+            for entry in transcript
+        ]
+    }
+
+    filename = os.path.join(channel_dir, f"{sanitized_title}.json")
+
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(transcript_data, f, indent=4, ensure_ascii=False)
+
 
 def compute_sha1(file_path):
     """Compute the SHA1 hash of a file."""
@@ -327,23 +415,22 @@ def compute_sha1(file_path):
         return None
 
 def main_menu():
-    """Main navigation menu."""
     while True:
-        print("\nMain Menu")
-        print("1. Get video transcript")
-        print("2. Get transcript from video list file")
-        print("3. Fetch channel videos and save to file")
-        print("4. Find duplicate transcripts")
-        print("5. Quit")
-
+        print("""
+Main Menu
+1. Get video transcript
+2. Get transcript from video list file
+3. Fetch channel videos and save to file
+4. Find duplicate transcripts
+5. Quit
+""")
         choice = input("Enter your choice: ")
         if choice == "1":
             fetch_single_video()
         elif choice == "2":
             process_file_with_video_urls()
         elif choice == "3":
-            channel_url = input("Enter the channel URL or handle: ")
-            fetch_channel_videos(channel_url)
+            fetch_channel_videos(input("Enter channel URL: "))
         elif choice == "4":
             find_duplicate_transcripts()
         elif choice == "5":
@@ -352,7 +439,5 @@ def main_menu():
         else:
             print("Invalid choice. Please try again.")
 
-
-# ====================== MAIN SCRIPT ================================
 if __name__ == "__main__":
     main_menu()
