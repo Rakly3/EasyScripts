@@ -15,7 +15,6 @@
 # =========================== IMPORTS =============================
 import os, re, csv, json, hashlib, logging, isodate
 from tqdm import tqdm
-from prettyPrint import *
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 from googleapiclient.discovery import build
@@ -49,7 +48,7 @@ def load_config():
         try:
             with open(API_KEY_FILE, "r") as f:
                 api_key_data = json.load(f)
-                config["API_KEY"] = api_key_data.get("youtube").get("api_key")
+                config["API_KEY"] = api_key_data.get("API_KEY")
         except Exception as e:
             eprint(f"Error loading '{API_KEY_FILE}': {e}. API key not loaded.")
     else:
@@ -66,6 +65,12 @@ ENABLE_LOGGING = CONFIG["ENABLE_LOGGING"]
 TRANSCRIPT_FILENAME_LENGTH = CONFIG["TRANSCRIPT_FILENAME_LENGTH"]
 REGEX_PATTERNS = CONFIG["REGEX_PATTERNS"]
 API_KEY = CONFIG.get("API_KEY")
+
+# Terminal colors
+INFO_COLOR = "\033[94m"  # Light blue
+WARNING_COLOR = "\033[93m"  # Yellow
+ERROR_COLOR = "\033[91m"  # Light red
+END_COLOR = "\033[0m"  # Reset to default color
 
 if not API_KEY:
     raise ValueError("API key is missing. Please provide it in 'API_KEY.json'.")
@@ -581,6 +586,21 @@ def compute_sha1(file_path):
     except Exception as e:
         logging.error(f"Error computing SHA1 for {file_path}: {e}")
         return None
+
+
+def iprint(text):
+    """Print text in info color"""
+    print(f"{INFO_COLOR}{text}{END_COLOR}")
+
+
+def wprint(text):
+    """Print text in warning color"""
+    print(f"{WARNING_COLOR}{text}{END_COLOR}")
+
+
+def eprint(text):
+    """Print text in error color"""
+    print(f"{ERROR_COLOR}{text}{END_COLOR}")
 
 
 def main_menu():

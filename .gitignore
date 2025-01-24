@@ -1,8 +1,0 @@
-YoutubeTranscriptDownloader/logs
-YoutubeTranscriptDownloader/transcripts
-YoutubeTranscriptDownloader/processed
-YoutubeTranscriptDownloader/.*
-YoutubeTranscriptDownloader/__pycache__
-YoutubeTranscriptDownloader/AI prompts.txt
-YoutubeTranscriptDownloader/list.txt
-YoutubeTranscriptDownloader/API_KEY.json
