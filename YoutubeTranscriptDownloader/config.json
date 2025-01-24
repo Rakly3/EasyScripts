@@ -2,7 +2,7 @@
     "LOGFILE_NAME": "script.log",
     "LOGFILE_PATH": "./logs",
     "ENABLE_LOGGING": true,
-    "TRANSCRIPT_FILENAME_LENGTH": 36,
+    "TRANSCRIPT_FILENAME_LENGTH": 100,
     "REGEX_PATTERNS": {
         "sanitize_filename": "[^\\w\\-\\s]",
         "youtube_video_id": "(?:v=|\\/)([0-9A-Za-z_-]{11})(?:[&?].*)?"
