@@ -1,3 +1,12 @@
+# **Due to Google API changes this downloader will likely no longer work**
+> I've tried to update it but Google now bans 24h
+>
+
+---
+---
+
+<br>
+
 # YouTube Transcript Downloader
 
 ---
