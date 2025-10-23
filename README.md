@@ -9,6 +9,11 @@
 
 ---
 
+<br>
+
+> Due to changes in the Google API the transcript downloader no longer works.
+> 
+
 ### YoutubeTranscriptDownloader
 - 🚨 **Requires YouTube API Key** 🚨
 - Download YouTube video transcripts
